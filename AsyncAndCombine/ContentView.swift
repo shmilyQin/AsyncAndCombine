@@ -7,9 +7,16 @@
 
 import SwiftUI
 import Combine
+import Alamofire
 
 class ImageLoader {
     let url = URL(string: "https://picsum.photos/100")!
+    let bigUrl = URL(string: "https://picsum.photos/300")!
+    enum Status {
+        case downloading(Float)
+        case finished(Data)
+    }
+    
     func fetchImageWithAsync() async throws -> UIImage? {
         let (data, _) = try await URLSession.shared.data(from: url)
         return UIImage(data: data)
@@ -29,6 +36,45 @@ class ImageLoader {
         let images = try await [firstImage, secondImage, thirdImage]
         return images.compactMap{$0}
     }
+    
+    func download(_ url: URL, progressHandler: @escaping (Float) -> Void, completion: @escaping (Result<Data, Error>) -> Void) throws {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documentsURL.appendingPathComponent("downLoadFile/" + "\(Date(timeIntervalSinceNow: 0))" + ".ipg")
+        let destination: DownloadRequest.Destination = { _, _ in
+            //两个参数表示如果有同名文件则会覆盖，如果路径中文件夹不存在则会自动创建
+            return (fileURL, [.removePreviousFile, .createIntermediateDirectories])
+        }
+        let request = AF.download(url, to: destination).responseData { item in
+            let result = Result<Data, Error>.success(item.value!)
+            completion(result)
+        }
+        request.downloadProgress { progress in
+            progressHandler(Float(progress.fractionCompleted))
+        }
+    }
+}
+
+extension ImageLoader {
+    func download() -> AsyncThrowingStream<Status, Error> {
+        return AsyncThrowingStream { continuation in
+            do {
+                try self.download(bigUrl, progressHandler: { progress in
+                    continuation.yield(.downloading(progress))
+                }, completion: { result in
+                    switch result {
+                    case .success(let success):
+                        continuation.yield(.finished(success))
+                        continuation.finish()
+                    case .failure(let failure):
+                        continuation.finish(throwing: failure)
+                    }
+                })
+            } catch {
+                
+            }
+        }
+    }
+    
 }
 
 class ViewModel: ObservableObject {
@@ -73,6 +119,21 @@ class ViewModel: ObservableObject {
         }
     }
     
+    func downloadImage() async {
+        do {
+            for try await status in loader.download() {
+                switch status {
+                case .downloading(let progress):
+                    print("progress --- \(progress)")
+                case .finished(let data):
+                    print("finished --- \(data)")
+                }
+            }
+        } catch let error {
+            print("error --- \(error)")
+        }
+    }
+    
 }
 
 struct ContentView: View {
@@ -101,7 +162,8 @@ struct ContentView: View {
 //            viewModel.fetchImageWithCombine()
             Task {
 //                await viewModel.fetchImage()
-                await viewModel.fetchImages()
+//                await viewModel.fetchImages()
+                await viewModel.downloadImage()
             }
         }
     }
