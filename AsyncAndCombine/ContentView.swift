@@ -11,7 +11,7 @@ import Alamofire
 
 class ImageLoader {
     let url = URL(string: "https://picsum.photos/100")!
-    let bigUrl = URL(string: "https://picsum.photos/300")!
+    let bigUrl = URL(string: "https://picsum.photos/500")!
     enum Status {
         case downloading(Float)
         case finished(Data)
