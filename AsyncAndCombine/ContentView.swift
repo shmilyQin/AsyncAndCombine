@@ -121,7 +121,7 @@ class ViewModel: ObservableObject {
             .store(in: &bag)
     }
     
-    func fetchImages() async {
+    func fetchImagesWithAsync() async {
         do {
             let value = try await loader.fetchImages()
             await MainActor.run(body: {
@@ -195,10 +195,10 @@ struct ContentView: View {
         .onAppear {
 //            viewModel.fetchImageWithCombine()
 //            viewModel.fetchAllImagesWithCombine()
-            viewModel.useCombineDownLoadImageWithProgress()
+//            viewModel.useCombineDownLoadImageWithProgress()
             Task {
 //                await viewModel.fetchImage()
-//                await viewModel.fetchImages()
+//                await viewModel.fetchImagesWithAsync()
 //                await viewModel.downloadImageWithProgress()
             }
         }
