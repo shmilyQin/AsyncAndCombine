@@ -25,7 +25,7 @@ class ImageLoader {
     func fetchImageWithCombine() -> AnyPublisher<UIImage?, Error> {
         URLSession.shared.dataTaskPublisher(for: url)
             .map { UIImage(data: $0.data) }
-            .mapError {$0}
+            .mapError{$0}
             .eraseToAnyPublisher()
     }
     
@@ -35,6 +35,18 @@ class ImageLoader {
         async let thirdImage = fetchImageWithAsync()
         let images = try await [firstImage, secondImage, thirdImage]
         return images.compactMap{$0}
+    }
+    
+    func fetchImagesWithCombine() -> AnyPublisher<[UIImage], Error> {
+        let firstImage = fetchImageWithCombine()
+        let secondImage = fetchImageWithCombine()
+        let thirdImage = fetchImageWithCombine()
+        return Publishers.Zip3(firstImage, secondImage, thirdImage)
+            .compactMap({ tuple in
+                let tupleMirror = Mirror(reflecting: tuple)
+                return tupleMirror.children.map({ $0.value }) as? [UIImage]
+            })
+            .eraseToAnyPublisher()
     }
     
     func download(_ url: URL, progressHandler: @escaping (Float) -> Void, completion: @escaping (Result<Data, Error>) -> Void) throws {
@@ -79,6 +91,7 @@ extension ImageLoader {
 
 class ViewModel: ObservableObject {
     let loader = ImageLoader()
+    let dataManager = DataManager()
     @Published
     var image: UIImage?
     @Published
@@ -119,7 +132,18 @@ class ViewModel: ObservableObject {
         }
     }
     
-    func downloadImage() async {
+    func fetchAllImagesWithCombine() {
+        loader.fetchImagesWithCombine()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in
+                
+            } receiveValue: {[weak self] images in
+                guard let self = self else { return  }
+                imageList = images
+            }.store(in: &bag)
+    }
+    
+    func downloadImageWithProgress() async {
         do {
             for try await status in loader.download() {
                 switch status {
@@ -132,6 +156,16 @@ class ViewModel: ObservableObject {
         } catch let error {
             print("error --- \(error)")
         }
+    }
+    
+    func useCombineDownLoadImageWithProgress() {
+        dataManager.saveFile(urlString: "https://picsum.photos/1000", fileName: "picsum")
+            .sink { complete in
+                print("complete ---- \(complete)")
+            } receiveValue: { progress in
+                print("progress ---- \(progress)")
+            }
+            .store(in: &bag)
     }
     
 }
@@ -160,10 +194,12 @@ struct ContentView: View {
         }
         .onAppear {
 //            viewModel.fetchImageWithCombine()
+//            viewModel.fetchAllImagesWithCombine()
+            viewModel.useCombineDownLoadImageWithProgress()
             Task {
 //                await viewModel.fetchImage()
 //                await viewModel.fetchImages()
-                await viewModel.downloadImage()
+//                await viewModel.downloadImageWithProgress()
             }
         }
     }
